@@ -11,7 +11,8 @@ class LetorDataset():
         has_docid = False
         for col in reversed(df.columns):
             if df[col][0] == "#docid":
-                df.drop(columns=[col, int(col) + 1, *range(int(col) +
+                col_int = int(str(col))
+                df.drop(columns=[col, col_int + 1, *range(col_int +
                         3, len(df.columns))], inplace=True)
                 has_docid = True
                 break
@@ -23,7 +24,7 @@ class LetorDataset():
                 col_names.append(df[i][0].split(":")[0])
         if has_docid:
             col_names.append("docid")
-        df.columns = col_names
+        df = df.set_axis(col_names, axis=1, copy=False)
 
         # Remove all occurrence of colons in the data
         df = df.applymap(lambda s: s.split(":")[1] if ":" in str(s) else s)
@@ -60,7 +61,7 @@ class LetorDataset():
         """
         if len(args) == 0:
             return (
-                np.stack(self._qid_to_data.loc[qid].drop("relevance"), axis=1),
+                np.stack(self._qid_to_data.loc[qid].drop("relevance").to_list(), axis=1),
                 np.array(self._qid_to_data.loc[qid]["relevance"])
             )
         else:
@@ -76,3 +77,6 @@ class LetorDataset():
         """Return a list of query ids that result in the given doc id
         """
         return self._docid_to_qid.loc[docid]
+    
+    def get_num_features(self) -> int:
+        return len(self.feature_cols)
