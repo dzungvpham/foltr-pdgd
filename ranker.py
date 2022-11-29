@@ -3,8 +3,7 @@ import numpy as np
 from copy import copy
 
 
-def create_flipped_ranking(ranking: list[int], clicked_idx: int, not_clicked_idx: int) -> list[int]:
-    ranking_switched = copy(ranking)
+def flip_ranking(ranking: list[int], clicked_idx: int, not_clicked_idx: int) -> list[int]:
     clicked_ranking_idx = None
     not_clicked_ranking_idx = None
     for i in range(len(ranking)):
@@ -12,10 +11,8 @@ def create_flipped_ranking(ranking: list[int], clicked_idx: int, not_clicked_idx
             clicked_ranking_idx = i
         elif ranking[i] == not_clicked_idx:
             not_clicked_ranking_idx = i
-    ranking_switched[clicked_ranking_idx] = not_clicked_idx
-    ranking_switched[not_clicked_ranking_idx] = clicked_idx
-
-    return ranking_switched
+    ranking[clicked_ranking_idx] = not_clicked_idx
+    ranking[not_clicked_ranking_idx] = clicked_idx
 
 
 def calculate_ranking_score(ranking: list[int], values: np.ndarray, values_sum: float) -> float:
@@ -72,21 +69,24 @@ class LinearRanker():
         fXe_sum = np.sum(fXe)
         score_ranking = calculate_ranking_score(ranking, fXe, fXe_sum)
 
+        ranking_flipped = copy(ranking)
         for clicked_idx, not_clicked_idx in click_pairs:
-            # Pair weight
-            ranking_flipped = create_flipped_ranking(
-                ranking, clicked_idx, not_clicked_idx)
+            # Calculate pair weight
+            flip_ranking(ranking_flipped, clicked_idx, not_clicked_idx)
             score_flipped = calculate_ranking_score(
                 ranking_flipped, fXe, fXe_sum)
             weight = score_flipped / (score_ranking + score_flipped)
             
-            # Pair gradient
+            # Calculate pair gradient
             e1 = fXe[clicked_idx].item()
             e2 = fXe[not_clicked_idx].item()
             weight *= (e1 * e2) / ((e1 + e2) ** 2)
             
-            # Model gradient
+            # Add to model gradient
             grad += weight * (X[clicked_idx] -
                               X[not_clicked_idx]).reshape((-1, 1))
+            
+            # Unflip ranking
+            flip_ranking(ranking_flipped, clicked_idx, not_clicked_idx)
 
         return grad
