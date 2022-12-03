@@ -56,7 +56,6 @@ class Client():
         if parameters is not None:
             self.ranker.set_parameters(parameters)
 
-        num_clicked = 0
         queries = self.rng.choice(self.dataset.qids, size=self.num_queries, replace=False)
         eval_params = []
 
@@ -70,11 +69,10 @@ class Client():
 
             grad = self.ranker.calculate_gradient(X, ranking, click_pairs)
             self.ranker.add_to_parameters(self.learning_rate * grad)
-            num_clicked += sum(clicks)
             eval_params.append((query, ranking, R))
 
         ndcg = self.evaluator.calculate_average_online_ndcg(eval_params)
 
-        return (self.ranker.get_parameters(), num_clicked, ndcg)
+        return (self.ranker.get_parameters(), self.num_queries, ndcg)
 
     
