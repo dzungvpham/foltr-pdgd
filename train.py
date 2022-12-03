@@ -8,15 +8,24 @@ from numpy.random import default_rng
 from ranker import LinearRanker
 
 click_models = {
-    "MQ2007_perfect":
+    "MSLR10k_perfect":
         ClickModel(prob_click=[0.0, 0.2, 0.4, 0.8, 1.0],
                    prob_stop=[0.0, 0.0, 0.0, 0.0, 0.0]),
-    "MQ2007_navigational":
+    "MSLR10k_navigational":
         ClickModel(prob_click=[0.05, 0.3, 0.5, 0.7, 0.95],
                    prob_stop=[0.2, 0.3, 0.5, 0.7, 0.9]),
-    "MQ2007_informational":
+    "MSLR10k_informational":
         ClickModel(prob_click=[0.4, 0.6, 0.7, 0.8, 0.9],
                    prob_stop=[0.1, 0.2, 0.3, 0.4, 0.5]),
+    "MQ2007_perfect":
+        ClickModel(prob_click=[0.0, 0.5, 1.0],
+                   prob_stop=[0.0, 0.0, 0.0]),
+    "MQ2007_navigational":
+        ClickModel(prob_click=[0.05, 0.5, 0.95],
+                   prob_stop=[0.2, 0.5, 0.9]),
+    "MQ2007_informational":
+        ClickModel(prob_click=[0.4, 0.7, 0.9],
+                   prob_stop=[0.1, 0.3, 0.5]),
 }
 
 config = {
