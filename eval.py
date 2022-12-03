@@ -5,7 +5,7 @@ from ranker import LinearRanker
 
 
 class Evaluator():
-    def __init__(self, dataset: LetorDataset, rank_cnt: int, online_discount: float):
+    def __init__(self, dataset: LetorDataset, rank_cnt: int, online_discount: float = 1.0):
         self._dataset = dataset
         self._rank_cnt = rank_cnt
         self._online_discount = online_discount
@@ -19,7 +19,7 @@ class Evaluator():
             # Reverse and grab top k
             relevance = relevance[:-(self._rank_cnt+1):-1]
             self._idcg_map[qid] = np.sum(
-                (2 ** relevance - 1) * self._dcg_weight[:self._rank_cnt])
+                (2 ** relevance - 1) * self._dcg_weight[:len(relevance)])
 
     def calculate_average_offline_ndcg(self, ranker: LinearRanker) -> float:
         total_dcg = 0.0
@@ -36,13 +36,17 @@ class Evaluator():
         return total_dcg / len(self._dataset.qids)
 
     def calculate_average_online_ndcg(self, inputs: list[tuple[str, list[int], np.ndarray]]) -> float:
+        n = len(inputs)
+        if n == 0:
+            return 0.0
+
         gamma = 1.0
         ndcg = 0.0
         for qid, ranking, relevance in inputs:
             ndcg += self.calculate_ndcg_for_query_ranking(
                 qid, ranking, relevance) * gamma
             gamma *= self._online_discount
-        return ndcg / len(inputs)
+        return ndcg / n
 
     def calculate_ndcg_for_query_ranking(self, qid: str, ranking: list[int], relevance: np.ndarray) -> float:
         idcg = self._idcg_map[qid]

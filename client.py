@@ -2,6 +2,7 @@ import itertools
 import numpy as np
 
 from dataset import LetorDataset
+from eval import Evaluator
 from ranker import LinearRanker
 from typing import Optional
 
@@ -40,21 +41,25 @@ class ClickModel():
 class Client():
 
     def __init__(self, ranker: LinearRanker, dataset: LetorDataset, click_model: ClickModel,
-                 rng: np.random.Generator, num_queries: int = 1, learning_rate: float = 0.1):
+                 evaluator: Evaluator, rng: np.random.Generator,
+                 num_queries: int = 1, learning_rate: float = 0.1):
 
         self.ranker = ranker
         self.dataset = dataset
         self.click_model = click_model
+        self.evaluator = evaluator
         self.rng = rng
         self.num_queries = num_queries
         self.learning_rate = learning_rate
 
-    def train_model(self, parameters: Optional[np.ndarray] = None) -> tuple[np.ndarray, int]:
+    def train_model(self, parameters: Optional[np.ndarray] = None) -> tuple[np.ndarray, int, float]:
         if parameters is not None:
             self.ranker.set_parameters(parameters)
 
         num_clicked = 0
         queries = self.rng.choice(self.dataset.qids, size=self.num_queries, replace=False)
+        eval_params = []
+
         for query in queries:
             X, R = self.dataset.get_data_for_qid(query)
             ranking = self.ranker.rank_data(X)
@@ -66,7 +71,10 @@ class Client():
             grad = self.ranker.calculate_gradient(X, ranking, click_pairs)
             self.ranker.add_to_parameters(self.learning_rate * grad)
             num_clicked += sum(clicks)
+            eval_params.append((query, ranking, R))
 
-        return (self.ranker.get_parameters(), num_clicked)
+        ndcg = self.evaluator.calculate_average_online_ndcg(eval_params)
+
+        return (self.ranker.get_parameters(), num_clicked, ndcg)
 
     

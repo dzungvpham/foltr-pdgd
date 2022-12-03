@@ -21,7 +21,7 @@ click_models = {
 
 config = {
     "data_path": "./data/MQ2007/",
-    "num_clients": 100,
+    "num_clients": 1000,
     "rank_cnt": 10,
     "num_queries_per_round": 4,
     "num_rounds": 100,
@@ -32,26 +32,29 @@ config = {
 
 
 def train(config):
-    dataset = LetorDataset(config["data_path"] + "Fold1/train.txt")
-    test_dataset = LetorDataset(config["data_path"] + "Fold1/test.txt")
-
     num_clients = config["num_clients"]
     rank_cnt = config["rank_cnt"]
     online_eval_discount = config["online_eval_discount"]
+
+    train_dataset = LetorDataset(config["data_path"] + "Fold1/train.txt")
+    test_dataset = LetorDataset(config["data_path"] + "Fold1/test.txt")
+    train_evaluator = Evaluator(train_dataset, rank_cnt=rank_cnt)
+    test_evaluator = Evaluator(
+        test_dataset, rank_cnt=rank_cnt, online_discount=online_eval_discount)
+
     clients = []
     for i in range(num_clients):
         rng = default_rng(seed=i)
-        ranker = LinearRanker(num_features=dataset.get_num_features(),
+        ranker = LinearRanker(num_features=train_dataset.get_num_features(),
                               rank_cnt=rank_cnt, rng=rng)
-        clients.append(Client(ranker, dataset, click_models[config["click_model"]], rng,
+        clients.append(Client(ranker, train_dataset, click_models[config["click_model"]],
+                              train_evaluator, rng,
                               num_queries=config["num_queries_per_round"],
                               learning_rate=config["learning_rate"]))
 
-    master_model = LinearRanker(num_features=dataset.get_num_features(
+    master_model = LinearRanker(num_features=train_dataset.get_num_features(
     ), rank_cnt=rank_cnt, rng=default_rng())
 
-    test_evaluator = Evaluator(
-        test_dataset, rank_cnt=rank_cnt, online_discount=online_eval_discount)
     print("Round 0: Test nDCG@{} = {}".format(rank_cnt,
                                               test_evaluator.calculate_average_offline_ndcg(master_model)))
     test_ndcgs = []
@@ -59,20 +62,25 @@ def train(config):
     for round in range(config["num_rounds"]):
         total_clicks = 0
         new_params = np.zeros_like(master_model.get_parameters())
+        online_ndcgs = []
 
         for client in clients:
-            client_params, num_clicks = client.train_model(
+            client_params, num_clicks, online_ndcg = client.train_model(
                 master_model.get_parameters())
             new_params += client_params * num_clicks
             total_clicks += num_clicks
+            online_ndcgs.append(online_ndcg)
 
         if total_clicks == 0:
             continue
 
         master_model.set_parameters(new_params / total_clicks)
+
+        # Eval
         test_ndcg = test_evaluator.calculate_average_offline_ndcg(master_model)
         test_ndcgs.append(test_ndcg)
-        print("Round {}: Test nDCG@{} = {}".format(round + 1, rank_cnt, test_ndcg))
+        print("Round {}: Test nDCG@{} = {:.4f} | Online nDCG@{} = {:.4f}".format(
+            round + 1, rank_cnt, test_ndcg, rank_cnt, np.mean(online_ndcgs)))
 
     plt.plot(np.arange(len(test_ndcgs)), test_ndcgs)
     plt.show()
