@@ -29,12 +29,12 @@ click_models = {
 }
 
 config = {
-    "data_path": "./data/MQ2007/",
+    "data_path": "./data/MSLR-WEB10k/",
     "num_clients": 1000,
     "rank_cnt": 10,
     "num_queries_per_round": 4,
     "num_rounds": 100,
-    "click_model": "MQ2007_perfect",
+    "click_model": "MSLR10k_perfect",
     "learning_rate": 0.1,
     "online_eval_discount": 0.9995,
 }
@@ -45,8 +45,10 @@ def train(config):
     rank_cnt = config["rank_cnt"]
     online_eval_discount = config["online_eval_discount"]
 
-    train_dataset = LetorDataset(config["data_path"] + "Fold1/train.txt")
-    test_dataset = LetorDataset(config["data_path"] + "Fold1/test.txt")
+    train_dataset = LetorDataset(
+        config["data_path"] + "Fold1/train.txt", normalize=True)
+    test_dataset = LetorDataset(config["data_path"] + "Fold1/test.txt", normalize=True,
+                                norm_mean=train_dataset.norm_mean, norm_std=train_dataset.norm_std)
     train_evaluator = Evaluator(train_dataset, rank_cnt=rank_cnt)
     test_evaluator = Evaluator(
         test_dataset, rank_cnt=rank_cnt, online_discount=online_eval_discount)

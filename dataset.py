@@ -4,7 +4,7 @@ import pandas as pd
 
 class LetorDataset():
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, normalize=True, norm_mean: pd.Series=None, norm_std: pd.Series=None):
         df = pd.read_csv(path, sep=" ", header=None, engine="pyarrow")
 
         # Find the docid column if it exists, then drop all columns after it
@@ -16,6 +16,11 @@ class LetorDataset():
                         3, len(df.columns))], inplace=True)
                 has_docid = True
                 break
+
+        # Drop invalid columns
+        for col in df.columns:
+            if df[col][0] is None:
+                df.drop(columns=[col], inplace=True)
 
         # Set the column names
         col_names = ["relevance", "qid"]
@@ -32,12 +37,21 @@ class LetorDataset():
         # Update column types
         df["relevance"] = df["relevance"].astype("int")
         df["qid"] = df["qid"].astype("string")
-        df["docid"] = df["docid"].astype("string")
+        if has_docid:
+            df["docid"] = df["docid"].astype("string")
         feature_cols: list[str] = []
         for col in df.columns:
             if not (col in ["relevance", "qid", "docid"]):
                 df[col] = pd.to_numeric(df[col])
                 feature_cols.append(str(col))
+
+        # Normalize the data
+        if normalize:
+            self.norm_mean = df[feature_cols].mean() if norm_mean is None else norm_mean
+            self.norm_std = df[feature_cols].std() if norm_std is None else norm_std
+            std = self.norm_std.copy()
+            std[std == 0.0] = 1.0 # Prevent division by 0
+            df[feature_cols] = (df[feature_cols] - self.norm_mean) / std
 
         # Set instance variables
         self.df = df

@@ -1,7 +1,7 @@
 import numpy as np
 
 from copy import copy
-from scipy.special import softmax
+from scipy.special import logsumexp, softmax
 
 
 def flip_ranking(ranking: list[int], clicked_idx: int, not_clicked_idx: int) -> list[int]:
@@ -16,12 +16,11 @@ def flip_ranking(ranking: list[int], clicked_idx: int, not_clicked_idx: int) -> 
     ranking[not_clicked_ranking_idx] = clicked_idx
 
 
-def calculate_ranking_score(ranking: list[int], values: np.ndarray, values_sum: float) -> float:
-    prob_ranking_denom = 0
-    for r in ranking:
-        prob_ranking_denom += np.log(values_sum)
-        values_sum -= values[r].item()
-    return np.exp(-prob_ranking_denom)
+def calculate_ranking_score(ranking: list[int], scores: np.ndarray) -> float:
+    res = 0.0
+    for i in range(len(ranking)):
+        res += logsumexp(scores[ranking[i:]])
+    return -res
 
 
 class LinearRanker():
@@ -43,10 +42,20 @@ class LinearRanker():
         return X @ self.W
 
     def rank_data(self, X: np.ndarray) -> list[int]:
-        size = min(self.rank_cnt, X.shape[0])
-        probs = softmax(self.forward(X)).reshape(-1)
-        return self.rng.choice(np.arange(X.shape[0]), size=size,
-                               p=probs, replace=False, shuffle=False).tolist()
+        scores = self.forward(X)
+        ranking = []
+        candidates = np.arange(X.shape[0])
+        remaining_cnt = min(self.rank_cnt, X.shape[0])
+
+        while remaining_cnt > 0:
+            scores[ranking] = np.NINF
+            probs = softmax(scores).reshape(-1)
+            size = min(remaining_cnt, np.sum(probs > 0.0))
+            ranking += self.rng.choice(candidates, size=size,
+                                       p=probs, replace=False, shuffle=False).tolist()
+            remaining_cnt -= size
+
+        return ranking
 
     def calculate_gradient(
             self, X: np.ndarray, ranking: list[int], click_pairs: list[tuple[int, int]]) -> np.ndarray:
@@ -56,25 +65,26 @@ class LinearRanker():
         # Calculate Pr(Ranking | Data)
         fX = self.forward(X)
         fXe = np.exp(fX)
-        fXe_sum = np.sum(fXe)
-        score_ranking = calculate_ranking_score(ranking, fXe, fXe_sum)
+        score_ranking = calculate_ranking_score(ranking, fX)
 
         ranking_flipped = copy(ranking)
         for clicked_idx, not_clicked_idx in click_pairs:
             # Calculate pair weight
             flip_ranking(ranking_flipped, clicked_idx, not_clicked_idx)
-            score_flipped = calculate_ranking_score(
-                ranking_flipped, fXe, fXe_sum)
-            weight = score_flipped / (score_ranking + score_flipped)
+            score_flipped = calculate_ranking_score(ranking_flipped, fX)
+            # Pr of flipped ranking / (Pr of original ranking + Pr of flipped ranking)
+            weight = np.exp(score_flipped - logsumexp([score_ranking, score_flipped]))
 
             # Calculate pair gradient
             e1 = fXe[clicked_idx].item()
             e2 = fXe[not_clicked_idx].item()
-            weight *= (e1 * e2) / ((e1 + e2) ** 2)
+            # (e1 * e2) / ((e1 + e2) ** 2)
+            weight *= np.exp(np.log(e1) + np.log(e2) - 2 * np.log(e1 + e2))
+            # f'(clicked) - f'(not_clicked)
+            weight *= (X[clicked_idx] - X[not_clicked_idx]).reshape((-1, 1))
 
             # Add to model gradient
-            grad += weight * (X[clicked_idx] -
-                              X[not_clicked_idx]).reshape((-1, 1))
+            grad += weight
 
             # Unflip ranking
             flip_ranking(ranking_flipped, clicked_idx, not_clicked_idx)
