@@ -29,7 +29,7 @@ class Evaluator():
 
             X, relevance = self._dataset.get_data_for_qid(qid)
             scores = ranker.forward(X).reshape(-1)
-            ranking = np.argsort(scores)[::-1]  # Sort the indices then reverse
+            ranking = np.argsort(scores).tolist()[::-1]  # Sort the indices then reverse
             total_dcg += self.calculate_ndcg_for_query_ranking(
                 qid, ranking, relevance)
 

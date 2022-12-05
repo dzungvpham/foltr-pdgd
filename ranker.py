@@ -4,9 +4,9 @@ from copy import copy
 from scipy.special import logsumexp, softmax
 
 
-def flip_ranking(ranking: list[int], clicked_idx: int, not_clicked_idx: int) -> list[int]:
-    clicked_ranking_idx = None
-    not_clicked_ranking_idx = None
+def flip_ranking(ranking: list[int], clicked_idx: int, not_clicked_idx: int):
+    clicked_ranking_idx = 0
+    not_clicked_ranking_idx = 0
     for i in range(len(ranking)):
         if ranking[i] == clicked_idx:
             clicked_ranking_idx = i
@@ -43,7 +43,7 @@ class LinearRanker():
 
     def rank_data(self, X: np.ndarray) -> list[int]:
         scores = self.forward(X)
-        ranking = []
+        ranking: list[int] = []
         candidates = np.arange(X.shape[0])
         remaining_cnt = min(self.rank_cnt, X.shape[0])
 

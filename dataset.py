@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 
+from typing import Optional
 
 class LetorDataset():
 
-    def __init__(self, path: str, normalize=True, norm_mean: pd.Series=None, norm_std: pd.Series=None):
+    def __init__(self, path: str, normalize=True, norm_mean: Optional[pd.Series]=None, norm_std: Optional[pd.Series]=None):
         df = pd.read_csv(path, sep=" ", header=None, engine="pyarrow")
 
         # Find the docid column if it exists, then drop all columns after it

@@ -37,6 +37,9 @@ config = {
     "click_model": "MSLR10k_perfect",
     "learning_rate": 0.1,
     "online_eval_discount": 0.9995,
+    "enable_dp": True,
+    "sensitivity": 3,
+    "epsilon": 1.2,
 }
 
 
@@ -60,8 +63,12 @@ def train(config):
                               rank_cnt=rank_cnt, rng=rng)
         clients.append(Client(ranker, train_dataset, click_models[config["click_model"]],
                               train_evaluator, rng,
+                              num_clients=num_clients,
                               num_queries=config["num_queries_per_round"],
-                              learning_rate=config["learning_rate"]))
+                              learning_rate=config["learning_rate"],
+                              enable_dp=config["enable_dp"],
+                              sensitivity=config["sensitivity"],
+                              epsilon=config["epsilon"]))
 
     master_model = LinearRanker(num_features=train_dataset.get_num_features(
     ), rank_cnt=rank_cnt, rng=default_rng())
