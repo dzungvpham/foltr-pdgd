@@ -41,15 +41,19 @@ class LinearRanker():
     def forward(self, X: np.ndarray):
         return X @ self.W
 
-    def rank_data(self, X: np.ndarray) -> list[int]:
-        scores = self.forward(X)
+    def rank_data(self, X: np.ndarray, sample=True) -> list[int]:
+        scores = self.forward(X).reshape(-1)
+
+        if not sample: # Sort the indices then reverse
+            return np.argsort(scores).tolist()[:-(self.rank_cnt+1):-1] 
+
         ranking: list[int] = []
         candidates = np.arange(X.shape[0])
         remaining_cnt = min(self.rank_cnt, X.shape[0])
 
         while remaining_cnt > 0:
             scores[ranking] = np.NINF
-            probs = softmax(scores).reshape(-1)
+            probs = softmax(scores)
             size = min(remaining_cnt, np.sum(probs > 0.0))
             ranking += self.rng.choice(candidates, size=size,
                                        p=probs, replace=False, shuffle=False).tolist()

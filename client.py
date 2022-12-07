@@ -60,19 +60,27 @@ class Client():
         self.epsilon = epsilon
         self.num_clients = num_clients
 
-    def train_model(self, parameters: Optional[np.ndarray] = None) -> tuple[np.ndarray, int, float]:
+    def train_model(
+        self, parameters: Optional[np.ndarray] = None, queries: Optional[list[str]] = None,
+        sample: bool = True, get_clicks: bool = False
+    ) -> tuple[np.ndarray, int, float, Optional[list[list[bool]]]]:
+
         if parameters is not None:
             self.ranker.set_parameters(parameters)
 
-        queries = self.rng.choice(
-            self.dataset.qids, size=self.num_queries, replace=False)
+        if queries is None:
+            queries = self.rng.choice(
+                self.dataset.qids, size=self.num_queries, replace=False).tolist()
+
         eval_params = []
+        click_res: list[list[bool]] = []  # For MIA experiment
 
         for query in queries:
             X, R = self.dataset.get_data_for_qid(query)
-            ranking = self.ranker.rank_data(X)
+            ranking = self.ranker.rank_data(X, sample=sample)
             clicks = self.click_model.get_clicks(ranking, R, self.rng)
             click_pairs = create_click_pairs(ranking, clicks)
+            click_res.append(clicks)
             if len(click_pairs) == 0:
                 continue
 
@@ -87,4 +95,4 @@ class Client():
             params += generate_dp_gamma_noise(
                 self.rng, self.sensitivity, self.epsilon, self.num_clients, params.shape)
 
-        return (params, self.num_queries, ndcg)
+        return (params, self.num_queries, ndcg, None if not get_clicks else click_res)
