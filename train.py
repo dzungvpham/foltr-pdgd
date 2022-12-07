@@ -81,6 +81,12 @@ def train(config):
     test_ndcgs = []
     avg_online_ndcgs = []
 
+    save_name = "{}_nclients{}_nround{}_nquery{}_lr{}_sens{}_eps{}".format(
+        config["click_model"], num_clients, config["num_rounds"],
+        config["num_queries_per_round"], config["learning_rate"],
+        config["sensitivity"], config["epsilon"]
+    )
+
     for round in range(config["num_rounds"]):
         total_clicks = 0
         new_params = np.zeros_like(master_model.get_parameters())
@@ -106,11 +112,7 @@ def train(config):
             round + 1, rank_cnt, test_ndcg, rank_cnt, np.mean(online_ndcgs)))
 
         # Save model
-        np.save("{}/{}_nclients{}_nround{}_nquery{}_lr{}_sens{}_eps{}.npy".format(
-            config["save_path"], config["click_model"],
-            num_clients, config["num_rounds"], config["num_queries_per_round"],
-            config["learning_rate"],
-            config["sensitivity"], config["epsilon"]), master_model.get_parameters())
+        np.save("{}/{}.npy".format(config["save_path"], save_name), master_model.get_parameters())
 
     plt.plot(np.arange(len(test_ndcgs)), test_ndcgs,
              "-r", label="Test nDCG@{}".format(rank_cnt))
@@ -119,7 +121,7 @@ def train(config):
     plt.xlabel("Round")
     plt.ylabel("nDCG@{}".format(rank_cnt))
     plt.legend(loc="lower right")
-    plt.savefig("{}/ndcg.png".format(config["plot_path"]))
+    plt.savefig("{}/ndcg_{save_name}.png".format(config["plot_path"]))
     plt.show()
 
 

@@ -89,7 +89,7 @@ class Client():
 
             if self.enable_dp:
                 weights = self.ranker.get_parameters()
-                scale = np.minimum(1.0, self.sensitivity / (2 * np.linalg.norm(weights, 2)))
+                scale = np.minimum(1.0, self.sensitivity / (np.linalg.norm(weights, 2)))
                 self.ranker.set_parameters(weights * scale)
 
             eval_params.append((query, ranking, R))
