@@ -35,7 +35,7 @@ config = {
     "num_clients": 1000,
     "rank_cnt": 10,
     "num_queries_per_round": 4,
-    "num_rounds": 200,
+    "num_rounds": 100,
     "click_model": "MSLR10k_perfect",
     "learning_rate": 0.1,
     "online_eval_discount": 0.9995,
@@ -118,7 +118,7 @@ def train(config):
              label="Average online nDCG@{}".format(rank_cnt))
     plt.xlabel("Round")
     plt.ylabel("nDCG@{}".format(rank_cnt))
-    plt.legend(loc="upper left")
+    plt.legend(loc="lower right")
     plt.savefig("{}/ndcg.png".format(config["plot_path"]))
     plt.show()
 

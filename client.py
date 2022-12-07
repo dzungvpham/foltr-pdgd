@@ -86,6 +86,12 @@ class Client():
 
             grad = self.ranker.calculate_gradient(X, ranking, click_pairs)
             self.ranker.add_to_parameters(self.learning_rate * grad)
+
+            if self.enable_dp:
+                weights = self.ranker.get_parameters()
+                scale = np.minimum(1.0, self.sensitivity / (2 * np.linalg.norm(weights, 2)))
+                self.ranker.set_parameters(weights * scale)
+
             eval_params.append((query, ranking, R))
 
         ndcg = self.evaluator.calculate_average_online_ndcg(eval_params)

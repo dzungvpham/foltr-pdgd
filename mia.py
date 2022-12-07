@@ -66,7 +66,7 @@ click_models = {
 }
 
 data_path = "./data/MSLR-WEB10k/Fold1/vali.txt"
-params_path = "./models/MSLR10k_perfect_nclients1000_lr0.1_sens3_eps1.2.npy"
+params_path = "./models/MSLR10k_perfect_nclients1000_nround200_nquery4_lr0.1_sens3_eps1.2.npy"
 
 rng = default_rng(1)
 rank_cnt = 10
@@ -87,7 +87,7 @@ client_ranker = LinearRanker(
 params = np.load(params_path)
 master_ranker.set_parameters(params)
 
-client = Client(client_ranker, dataset, click_models["MSLR10k_informational"],
+client = Client(client_ranker, dataset, click_models["MSLR10k_perfect"],
                 evaluator, rng,
                 num_clients=num_clients, num_queries=num_queries,
                 learning_rate=lr,
