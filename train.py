@@ -31,10 +31,11 @@ click_models = {
 config = {
     "data_path": "./data/MSLR-WEB10k/",
     "save_path": "./models/",
+    "plot_path": "./plots/",
     "num_clients": 1000,
     "rank_cnt": 10,
     "num_queries_per_round": 4,
-    "num_rounds": 100,
+    "num_rounds": 200,
     "click_model": "MSLR10k_perfect",
     "learning_rate": 0.1,
     "online_eval_discount": 0.9995,
@@ -61,7 +62,8 @@ def train(config):
     num_features = train_dataset.get_num_features()
     for i in range(num_clients):
         rng = default_rng(seed=i)
-        ranker = LinearRanker(num_features=num_features, rank_cnt=rank_cnt, rng=rng)
+        ranker = LinearRanker(num_features=num_features,
+                              rank_cnt=rank_cnt, rng=rng)
         clients.append(Client(ranker, train_dataset, click_models[config["click_model"]],
                               train_evaluator, rng,
                               num_clients=num_clients,
@@ -71,11 +73,13 @@ def train(config):
                               sensitivity=config["sensitivity"],
                               epsilon=config["epsilon"]))
 
-    master_model = LinearRanker(num_features=num_features, rank_cnt=rank_cnt, rng=default_rng())
+    master_model = LinearRanker(
+        num_features=num_features, rank_cnt=rank_cnt, rng=default_rng())
 
     print("Round 0: Test nDCG@{} = {}".format(rank_cnt,
                                               test_evaluator.calculate_average_offline_ndcg(master_model)))
     test_ndcgs = []
+    avg_online_ndcgs = []
 
     for round in range(config["num_rounds"]):
         total_clicks = 0
@@ -97,16 +101,25 @@ def train(config):
         # Eval
         test_ndcg = test_evaluator.calculate_average_offline_ndcg(master_model)
         test_ndcgs.append(test_ndcg)
+        avg_online_ndcgs.append(np.mean(online_ndcgs))
         print("Round {}: Test nDCG@{} = {:.4f} | Online nDCG@{} = {:.4f}".format(
             round + 1, rank_cnt, test_ndcg, rank_cnt, np.mean(online_ndcgs)))
 
         # Save model
-        np.save("{}/{}_nclients{}_lr{}_sens{}_eps{}.npy".format(
+        np.save("{}/{}_nclients{}_nround{}_nquery{}_lr{}_sens{}_eps{}.npy".format(
             config["save_path"], config["click_model"],
-            num_clients, config["learning_rate"],
+            num_clients, config["num_rounds"], config["num_queries_per_round"],
+            config["learning_rate"],
             config["sensitivity"], config["epsilon"]), master_model.get_parameters())
 
-    plt.plot(np.arange(len(test_ndcgs)), test_ndcgs)
+    plt.plot(np.arange(len(test_ndcgs)), test_ndcgs,
+             "-r", label="Test nDCG@{}".format(rank_cnt))
+    plt.plot(np.arange(len(test_ndcgs)), avg_online_ndcgs, "-b",
+             label="Average online nDCG@{}".format(rank_cnt))
+    plt.xlabel("Round")
+    plt.ylabel("nDCG@{}".format(rank_cnt))
+    plt.legend(loc="upper left")
+    plt.savefig("{}/ndcg.png".format(config["plot_path"]))
     plt.show()
 
 
