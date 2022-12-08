@@ -121,7 +121,7 @@ def train(config):
     plt.xlabel("Round")
     plt.ylabel("nDCG@{}".format(rank_cnt))
     plt.legend(loc="lower right")
-    plt.savefig("{}/ndcg_{save_name}.png".format(config["plot_path"]))
+    plt.savefig("{}/ndcg_{}.png".format(config["plot_path"], save_name))
     plt.show()
 
 

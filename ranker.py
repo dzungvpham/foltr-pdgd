@@ -68,7 +68,6 @@ class LinearRanker():
 
         # Calculate Pr(Ranking | Data)
         fX = self.forward(X)
-        fXe = np.exp(fX)
         score_ranking = calculate_ranking_score(ranking, fX)
 
         ranking_flipped = copy(ranking)
@@ -80,10 +79,10 @@ class LinearRanker():
             weight = np.exp(score_flipped - logsumexp([score_ranking, score_flipped]))
 
             # Calculate pair gradient
-            e1 = fXe[clicked_idx].item()
-            e2 = fXe[not_clicked_idx].item()
-            # (e1 * e2) / ((e1 + e2) ** 2)
-            weight *= np.exp(np.log(e1) + np.log(e2) - 2 * np.log(e1 + e2))
+            f1 = fX[clicked_idx].item()
+            f2 = fX[not_clicked_idx].item()
+            # (e^f1 * e^f2) / ((e^f1 + e^f2) ** 2)
+            weight *= np.exp(f1 + f2 - 2 * np.logaddexp(f1, f2))
             # f'(clicked) - f'(not_clicked)
             weight *= (X[clicked_idx] - X[not_clicked_idx]).reshape((-1, 1))
 
