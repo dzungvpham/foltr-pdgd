@@ -66,7 +66,7 @@ click_models = {
 }
 
 data_path = "./data/MSLR-WEB10k/Fold1/vali.txt"
-params_path = "./models/MSLR10k_perfect_nclients1000_nround200_nquery4_lr0.1_sens3_eps1.2.npy"
+params_path = "./models/MSLR10k_perfect_nclients1000_nround100_nquery2_lr0.1_sens3_eps1.2.npy"
 
 rng = default_rng(1)
 rank_cnt = 10
@@ -125,11 +125,11 @@ for qid in tqdm(dataset.qids):
     n = len(original_ranking)
 
     # Random guesses
-    # for k in range(1, n + 1):
-    #     guess = np.array([False] * n)
-    #     guess[rng.choice(n, size=k, replace=False, shuffle=False)] = True
-    #     metrics_name = "Random guess " + str(k)
-    #     metrics.update_metrics(metrics_name, clicks, guess.tolist())
+    for k in range(1, n + 1):
+        guess = np.array([False] * n)
+        guess[rng.choice(n, size=k, replace=False, shuffle=False)] = True
+        metrics_name = "Random guess " + str(k)
+        metrics.update_metrics(metrics_name, clicks, guess.tolist())
 
     # Guess first position
     guess = [False] * n
