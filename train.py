@@ -30,7 +30,7 @@ click_models = {
 }
 
 config = {
-    "data_path": "./data/MSLR-WEB10k/",
+    "data_path": "./data/MSLR-WEB10K/",
     "save_path": "./models/",
     "plot_path": "./plots/",
     "fold": 1,

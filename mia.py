@@ -65,119 +65,157 @@ click_models = {
                    prob_stop=[0.1, 0.3, 0.5]),
 }
 
-data_path = "./data/MSLR-WEB10k/Fold1/vali.txt"
-params_path = "./models/MSLR10k_perfect_nclients1000_nround100_nquery2_lr0.1_sens3_eps1.2.npy"
 
-rng = default_rng(1)
-rank_cnt = 10
-num_clients = 1000
-num_queries = 1
-lr = 0.1
-sensitivity = 3
-epsilon = 1.2
+def attack(dataset, params_path, click_model):
+    # Seed doesn't matter since everything is deterministic
+    rng = default_rng(1)
+    rank_cnt = 10
+    num_clients = 1000
+    num_queries = 1
+    lr = 0.1
+    sensitivity = 3
+    epsilon = 1.2
 
-dataset = LetorDataset(data_path, normalize=True)
-evaluator = Evaluator(dataset, rank_cnt=rank_cnt)
-num_features = dataset.get_num_features()
-master_ranker = LinearRanker(
-    num_features=num_features, rank_cnt=rank_cnt, rng=rng)
-client_ranker = LinearRanker(
-    num_features=num_features, rank_cnt=rank_cnt, rng=rng)
+    evaluator = Evaluator(dataset, rank_cnt=rank_cnt)
+    num_features = dataset.get_num_features()
+    master_ranker = LinearRanker(
+        num_features=num_features, rank_cnt=rank_cnt, rng=rng)
+    client_ranker = LinearRanker(
+        num_features=num_features, rank_cnt=rank_cnt, rng=rng)
 
-params = np.load(params_path)
-master_ranker.set_parameters(params)
-
-client = Client(client_ranker, dataset, click_models["MSLR10k_perfect"],
-                evaluator, rng,
-                num_clients=num_clients, num_queries=num_queries,
-                learning_rate=lr,
-                enable_dp=True, sensitivity=sensitivity, epsilon=epsilon)
-
-metrics = Metrics()
-n_queries = 0
-
-for qid in tqdm(dataset.qids):
-    X = dataset.get_data_for_qid(qid)[0]
-    if (X.shape[0] < 10):
-        continue
-
-    client_params, _, _, maybe_clicks = client.train_model(
-        params, [qid], sample=False, get_clicks=True)
-
-    clicks = []
-    if maybe_clicks is not None:
-        clicks = maybe_clicks[0]
-    if not np.any(clicks):
-        continue
-
+    params = np.load(params_path)
     master_ranker.set_parameters(params)
-    original_ranking = master_ranker.rank_data(X, sample=False)
-    original_scores = master_ranker.forward(X).reshape(-1)[original_ranking]
-    original_probs = softmax(original_scores)
 
-    master_ranker.set_parameters(client_params)
-    X = X[original_ranking]
-    new_ranking = master_ranker.rank_data(X, sample=False)
-    new_scores = master_ranker.forward(X).reshape(-1)[new_ranking]
-    new_probs = softmax(new_scores)
+    client = Client(client_ranker, dataset, click_models[click_model],
+                    evaluator, rng,
+                    num_clients=num_clients, num_queries=num_queries,
+                    learning_rate=lr,
+                    enable_dp=True, sensitivity=sensitivity, epsilon=epsilon)
 
-    n_queries += 1
-    n = len(original_ranking)
+    metrics = Metrics()
+    n_queries = 0
 
-    # Random guesses
-    for k in range(1, n + 1):
-        guess = np.array([False] * n)
-        guess[rng.choice(n, size=k, replace=False, shuffle=False)] = True
-        metrics_name = "Random guess " + str(k)
-        metrics.update_metrics(metrics_name, clicks, guess.tolist())
+    for qid in tqdm(dataset.qids):
+        X = dataset.get_data_for_qid(qid)[0]
+        if (X.shape[0] < 10):
+            continue
 
-    # Guess first position
-    guess = [False] * n
-    guess[0] = True
-    metrics.update_metrics("FIRST_POS", clicks, guess)
+        client_params, _, _, maybe_clicks = client.train_model(
+            params, [qid], sample=False, get_clicks=True)
 
-    # Method 1
-    guess = new_scores > original_scores
-    metrics.update_metrics("HIGHER_SCORE", clicks, guess)
+        clicks = []
+        if maybe_clicks is not None:
+            clicks = maybe_clicks[0]
+        if not np.any(clicks):
+            continue
 
-    # Method 1b
-    guess = new_probs > original_probs
-    metrics.update_metrics("HIGHER_PROB", clicks, guess)
+        master_ranker.set_parameters(params)
+        original_ranking = master_ranker.rank_data(X, sample=False)
+        original_scores = master_ranker.forward(
+            X).reshape(-1)[original_ranking]
+        original_probs = softmax(original_scores)
 
-    # Method 2
-    guess = [False] * n
-    guess[np.argmax(new_probs - original_probs)] = True
-    metrics.update_metrics("MAX_PROB_DIFF", clicks, guess)
+        master_ranker.set_parameters(client_params)
+        X = X[original_ranking]
+        new_ranking = master_ranker.rank_data(X, sample=False)
+        new_scores = master_ranker.forward(X).reshape(-1)[new_ranking]
+        new_probs = softmax(new_scores)
 
-    # Method 3
-    guess = [False] * n
-    for i in range(n):
-        original_diff = []
-        new_diff = []
-        for j in range(n):
-            if i == j:
-                continue
-            original_diff.append(original_scores[i] - original_scores[j])
-            new_diff.append(new_scores[i] - new_scores[j])
+        n_queries += 1
+        n = len(original_ranking)
 
-        higher_diff_cnt = 0
-        for k in range(len(original_diff)):
-            if new_diff[k] > original_diff[k]:
-                higher_diff_cnt += 1
+        # Random guesses
+        for k in range(1, n + 1):
+            guess = np.array([False] * n)
+            guess[rng.choice(n, size=k, replace=False, shuffle=False)] = True
+            metrics_name = "Random guess " + str(k)
+            metrics.update_metrics(metrics_name, clicks, guess.tolist())
 
-        if higher_diff_cnt >= (rank_cnt / 2):
-            guess[i] = True
-    metrics.update_metrics("DIFF_COUNT", clicks, guess)
+        # Guess first position
+        guess = [False] * n
+        guess[0] = True
+        metrics.update_metrics("FIRST_POS", clicks, guess)
 
-    # Method 4
-    guess = [False] * n
-    reg = LinearRegression(fit_intercept=False).fit(X.T, (client_params - params).reshape(-1))
-    for i in range(n):
-        if reg.coef_[i] > 0.0:
-            guess[i] = True
-    metrics.update_metrics("REGRESSION", clicks, guess)
+        # Method 1
+        guess = new_scores > original_scores
+        metrics.update_metrics("HIGHER_SCORE", clicks, guess)
+
+        # Method 1b
+        guess = new_probs > original_probs
+        metrics.update_metrics("HIGHER_PROB", clicks, guess)
+
+        # Method 2
+        guess = [False] * n
+        guess[np.argmax(new_probs - original_probs)] = True
+        metrics.update_metrics("MAX_PROB_DIFF", clicks, guess)
+
+        # Method 3
+        guess = [False] * n
+        for i in range(n):
+            original_diff = []
+            new_diff = []
+            for j in range(n):
+                if i == j:
+                    continue
+                original_diff.append(original_scores[i] - original_scores[j])
+                new_diff.append(new_scores[i] - new_scores[j])
+
+            higher_diff_cnt = 0
+            for k in range(len(original_diff)):
+                if new_diff[k] > original_diff[k]:
+                    higher_diff_cnt += 1
+
+            if higher_diff_cnt >= (rank_cnt / 2):
+                guess[i] = True
+        metrics.update_metrics("DIFF_COUNT", clicks, guess)
+
+        # Method 4
+        guess = [False] * n
+        reg = LinearRegression(fit_intercept=False).fit(
+            X.T, (client_params - params).reshape(-1))
+        for i in range(n):
+            if reg.coef_[i] > 0.0:
+                guess[i] = True
+        metrics.update_metrics("REGRESSION", clicks, guess)
+
+    print("Number of eligible queries: {}".format(n_queries))
+
+    metrics.print_metrics()
+
+    return metrics
 
 
-print("Number of eligible queries: {}".format(n_queries))
+def attack_multiple():
+    folds = [1, 2, 3, 4, 5]
+    click_models = ["MSLR10k_perfect",
+                    "MSLR10k_navigational", "MSLR10k_informational"]
+    attacks = ["Random guess 3", "Random guess 4", "FIRST_POS", "HIGHER_SCORE",
+               "HIGHER_PROB", "DIFF_COUNT", "REGRESSION"]
+    metric_maps = {}
+    for click_model in click_models:
+        metric_maps[click_model] = []
 
-metrics.print_metrics()
+    for fold in folds:
+        data_path = "./data/MSLR-WEB10K/Fold{}/vali.txt".format(fold)
+        dataset = LetorDataset(data_path, normalize=True)
+        params_path = "./models/fold{}_MSLR10k_perfect_nclients1000_nround100_nquery2_lr0.1_sens3_eps1.2.npy".format(
+            fold)
+        for click_model in click_models:
+            print("Fold {} | {}".format(fold, click_model))
+            metrics = attack(dataset, params_path, click_model)
+            metric_maps[click_model].append(metrics)
+
+    for click_model in click_models:
+        print(click_model)
+        metrics = metric_maps[click_model]
+        n = len(metrics)
+        for atk in attacks:
+            print(atk)
+            for metrics_type in ["acc", "prec", "recall"]:
+                total = 0.0
+                for m in metrics:
+                    total += np.mean(m.metrics[atk][metrics_type])
+                print("Avg {}: {}".format(metrics_type, total / n))
+
+
+attack_multiple()
